@@ -1,0 +1,61 @@
+# Main Bug Investigator stack.
+# buggy-app is intentionally NOT included — run it separately (see buggy-app/).
+
+services:
+  api:
+    build: ./api
+    env_file: .env
+    environment:
+      RUNS_ROOT: /tmp/runs
+      # Path on the Docker host/VM that mirrors /tmp/runs inside api.
+      # Default works with Docker Desktop (Linux VM) and native Linux.
+      # Windows alternative: SANDBOX_BIND_ROOT=D:/AAI/Automated_Bug_Investigator/data/runs
+      SANDBOX_BIND_ROOT: ${SANDBOX_BIND_ROOT:-/tmp/bug-investigator-runs}
+      BUGGY_APP_BASE_URL: ${BUGGY_APP_BASE_URL:-http://host.docker.internal:8001}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SANDBOX_BIND_ROOT:-/tmp/bug-investigator-runs}:/tmp/runs
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      sandbox:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: bug_investigator
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # One-shot: builds/tags the sandbox image used by sandbox_test_agent
+  sandbox:
+    build: ./api/sandbox
+    image: bug-investigator-sandbox:latest
+    command: ["true"]
+    restart: "no"
+
+volumes:
+  pgdata:

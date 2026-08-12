@@ -1,0 +1,7 @@
+# Standalone demo service — NOT part of the main Bug Investigator compose.
+services:
+  buggy-app:
+    build: .
+    ports:
+      - "8001:8001"
+    # Tracebacks go to container logs — use: docker compose logs -f buggy-app
